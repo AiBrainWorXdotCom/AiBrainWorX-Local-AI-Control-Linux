@@ -1,0 +1,46 @@
+[
+  {
+    "file": "app/control_core.py",
+    "sha256": "4c01de6983d724d6f73f71655ed9a66399b5a5e094d902fd42681b8290438b10"
+  },
+  {
+    "file": "app/project_memory.py",
+    "sha256": "d28f33bf1cfa0d14cb3c29e7f5cb6e5a3f7b68c400594eab196adddb0ab543c4"
+  },
+  {
+    "file": "app/model_backends.py",
+    "sha256": "371c4959b36d835c3ab0674bc99341de5796ed56863a7895d091a79e92885979"
+  },
+  {
+    "file": "app/training_local.py",
+    "sha256": "caeb01ced85981967c5d82e6ceb85b5fc47a0bd257ec4d37a339d579804bfeda"
+  },
+  {
+    "file": "app/app_updates.py",
+    "sha256": "6845f946c5a268800e7035b36409abf94e8c1efb33b2cb8885ab0ab614570448"
+  },
+  {
+    "file": "app/local_chat.py",
+    "sha256": "bdb248428ce81d548c2d47e6585f469ba9606df91d7050c0eca4f4d29a42def0"
+  },
+  {
+    "file": "app/control_runtime.py",
+    "sha256": "c8f1d8e1d064fc404b284c8e0b78ecb2c5a59502737d5837630bb019666891f5"
+  },
+  {
+    "file": "app/prompt-presets.json",
+    "sha256": "97619f5442a30820f740922556613905df045a9895823bff851bdc21b5ce6b86"
+  },
+  {
+    "file": "app/model-suggestions.json",
+    "sha256": "a8a9111aa0f82fbd33163b369fac4e3de08a2eb914c4aa644f13b3be2ba4eb7e"
+  },
+  {
+    "file": "app/model-details.json",
+    "sha256": "5f53a9ddc66106087d569fa6750143061385eab8d5d6ec3ba0258bd22d78fb33"
+  },
+  {
+    "file": "app/dataset-suggestions.json",
+    "sha256": "df8045c4c21bd53b6eb7fa7a5de631d01c398c0625e86488ab06091c80842d8f"
+  }
+]

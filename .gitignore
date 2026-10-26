@@ -1,0 +1,13 @@
+.state/
+.venv/
+.runtime/
+.validation-state/
+.windows-fix/
+.aibrainworx-migration-backups/
+__pycache__/
+*.pyc
+*.local.json
+*.log
+*.sqlite3*
+tools_stage_windows_fix.py
+prepare_*.py
