@@ -74,7 +74,7 @@ class LinuxActivityApi(unittest.TestCase):
 
     def test_activity_and_progress_routes_require_token_and_same_origin(self):
         routes = [('/api/plugin-panels', {}), ('/api/plugin-remove', {}),
-                  ('/api/plugin-restore', {}), ('/api/plugin-archives', None),
+                  ('/api/plugin-restore', {}), ('/api/plugin-archives', None), ('/api/plugin-memory-policy', None), ('/api/plugin-memory-policy', {'level':'all'}),
                   ('/api/updates', {}), ('/api/update-progress?id=' + 'a' * 32, None),
                   ('/api/update-progress-clear', {'id': 'a' * 32})]
         for route, payload in routes:
@@ -86,6 +86,19 @@ class LinuxActivityApi(unittest.TestCase):
                     extra_headers={'Origin': 'https://foreign.invalid'})[0], 403)
         self.backend_status.assert_not_called()
         self.backend_connection.assert_not_called()
+
+    def test_memory_policy_api_requires_approval_and_controls_levels(self):
+        import shutil
+        folder = Path(self.config['StateRoot'])/'plugins/memory-policy'
+        folder.mkdir(parents=True)
+        shutil.copy(Path(__file__).resolve().parents[1]/'examples/plugins/memory-policy/plugin.json', folder/'plugin.json')
+        self.assertEqual(self.request('/api/plugin-memory-policy')[1]['level'], 'off')
+        self.assertEqual(self.request('/api/plugin-memory-policy', {'level':'all'})[0], 422)
+        item = self.request('/api/plugins')[1]['items'][0]
+        self.assertEqual(self.request('/api/plugin-approve', {'id':item['id'], 'fingerprint':item['fingerprint'], 'enabled':True, 'acceptLocalCodeRisk':True})[0], 200)
+        self.assertEqual(self.request('/api/plugin-memory-policy', {'level':'verified'})[0], 200)
+        self.assertEqual(self.request('/api/plugin-memory-policy')[1]['level'], 'verified')
+        self.assertEqual(self.request('/api/plugin-memory-policy', {'level':'admin'})[0], 422)
 
     def test_light_panel_context_ignores_client_backend_metrics_and_gpu_flag(self):
         report = {'items': [{'id': 'fixture', 'name': 'Monitor', 'state': 'enabled',

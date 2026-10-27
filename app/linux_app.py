@@ -105,6 +105,8 @@ def make_app(config, port=8765, gateway_port=8766):
                     return self.json(200, harness.status())
                 if path.path == '/api/memory':
                     return self.json(200, {'items': project_memory.items(config, active())})
+                if path.path == '/api/plugin-memory-policy':
+                    return self.json(200, {'level': plugin_host.memory_policy(config)})
                 if path.path == '/api/plugins':
                     return self.json(200, {'items': plugin_host.inventory(config)})
                 if path.path == '/api/plugin-archives':
@@ -176,6 +178,8 @@ def make_app(config, port=8765, gateway_port=8766):
                     return self.json(200, {'note': 'This check progress record was cleared.'})
                 if route == '/api/model-source':
                     return self.json(200, update_center.save_model_source(config, payload))
+                if route == '/api/plugin-memory-policy':
+                    return self.json(200, plugin_host.set_memory_policy(config, payload))
                 if route == '/api/plugin-approve':
                     return self.json(200, plugin_host.approve(config, payload))
                 if route == '/api/plugin-remove':

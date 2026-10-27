@@ -113,7 +113,7 @@ def make_server(config, port=8082, upstream_port=None):
                     if selected['backend']=='ollama' and (request.get('previous_response_id') or request.get('conversation')):
                         return self.reply_json(400, {'error': 'Ollama requires stateless Responses requests with complete input history.'})
                     def enrich(candidate):
-                        context = memory.recall(config,profile,memory.latest_question(candidate,route))['text'] if profile.get('useMemory') else ''
+                        context = memory.recall(config,profile,memory.latest_question(candidate,route),policy=plugin_host.memory_policy(config))['text'] if profile.get('useMemory') else ''
                         candidate = core.transform_request(candidate, profile, route, context)
                         candidate['model'] = selected['modelId']
                         if selected['reasoningEffort']:
@@ -267,7 +267,7 @@ def main():
                       'memory-list':lambda:dict(items=memory.items(config,profile(),payload.get('query',''),payload.get('archived',False))),
                       'memory-save':lambda:memory.save(config,profile(),payload),
                       'memory-archive':lambda:memory.archive(config,profile(),payload),
-                      'memory-preview':lambda:memory.recall(config,{**profile(),'useMemory':True},payload.get('query','')),
+                      'memory-preview':lambda:memory.recall(config,{**profile(),'useMemory':True},payload.get('query',''),policy=plugin_host.memory_policy(config)),
                       'handoff':lambda:memory.handoff(config,profile()),
                       'updates':lambda:update_center.check(config,core.VERSION,payload.get('includePrereleases',True)),
                       'track-update-source':lambda:update_center.save_model_source(config,payload)}
