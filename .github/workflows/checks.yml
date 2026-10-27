@@ -21,3 +21,6 @@ jobs:
         run: node --check web/app.js
       - name: Unreal inspection bridge contracts
         run: python3 -B bridge/test_unreal_mcp.py
+
+      - name: Activity frontend contracts
+        run: node tests/test_activity_frontend.cjs

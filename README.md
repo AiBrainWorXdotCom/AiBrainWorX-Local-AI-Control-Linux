@@ -1,6 +1,6 @@
 # AiBrainWorX Local AI Control — Linux
 
-**Separate native Linux control plane · 0.1.0-alpha.1 · MIT original code**
+**Separate native Linux control plane · 0.1.0-alpha.2 · MIT original code**
 
 A local workspace for model connections, profiles, instructions, project memory,
 long conversations, source-reviewed model discovery and user-owned extensions.
@@ -117,3 +117,7 @@ Unreal/Blender/Android acceptance are not claimed by this alpha.
 Update checks never install anything. Plugins are trusted local programs, not a
 sandbox. Local transcripts, settings and memory are unencrypted; keep the state
 folder private. No public listener, telemetry, tunnel or firewall rule is created.
+
+## Activity and update visibility
+
+The Activity page adds optional API-1 monitoring, explicit read-only process snapshots and hot plugin disable/archive/restore. Core service LEDs remain independent of extensions. Updates show actual completed source-check jobs. [Guide](docs/activity-monitor.md) · [Cross-platform validation record](docs/validation/2026-10-26-activity.md).

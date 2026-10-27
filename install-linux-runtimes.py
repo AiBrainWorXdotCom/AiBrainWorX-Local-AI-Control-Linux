@@ -86,6 +86,15 @@ def posix_path(value):
     return value
 
 
+def map_engine_args(arguments):
+    if not isinstance(arguments, list) or any(not isinstance(value, str) for value in arguments):
+        raise ValueError('Strata engine arguments must be a string array.')
+    # --resident-experts is upstream's LOW-RAM mode, not "load everything".
+    # Removing it selects the much larger default expert arena on Linux.
+    # Preserve the owner's memory flags; only translate filesystem paths.
+    return [posix_path(value) for value in arguments]
+
+
 def install(reuse_config=None):
     if sys.platform != 'linux':
         raise ValueError('Run this installer inside Linux/WSL.')
@@ -145,9 +154,9 @@ def install(reuse_config=None):
     if reuse_config:
         original = json.loads(Path(reuse_config).read_text(encoding='utf-8-sig'))
         mapped = {key: value for key, value in original.items() if key not in ('exe', 'args', 'cwd', 'lib_dirs', 'log')}
-        # Keep prepared lookup/weight data on its existing volume. Resident-all
-        # experts are inappropriate for this WSL VM's 15 GiB assigned RAM.
-        mapped['args'] = [posix_path(v) for v in original['args'] if v != '--resident-experts']
+        # Keep prepared lookup/weight data on its existing volume and retain
+        # upstream's low-RAM/mmap choices rather than changing allocation modes.
+        mapped['args'] = map_engine_args(original['args'])
         mapped.update(exe=str(engine), cwd=str(source), tokenizer=posix_path(original['tokenizer']),
                       lib_dirs=libdirs, log=str(state_dir/'strata-engine.log'),
                       open_browser=False, host='127.0.0.1', port=8081)

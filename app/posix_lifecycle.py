@@ -45,7 +45,14 @@ class Processes:
 
     def status(self, profile_id):
         record = self.records().get(profile_id)
-        return {'state': 'running' if same(record) else 'stopped', 'owned': bool(same(record))}
+        verified = same(record)
+        if record and not verified:
+            child = self.children.get(profile_id)
+            code = child.poll() if child else None
+            return {'state': 'error', 'owned': False,
+                    'detail': 'The engine exited'+(' (code '+str(code)+')' if code is not None else ' or its process identity changed')+
+                              '. Check its private engine log before restarting.'}
+        return {'state': 'running' if verified else 'stopped', 'owned': bool(verified)}
 
     def start(self, profile, environment=None):
         launch = profile['model'].get('launch', {})

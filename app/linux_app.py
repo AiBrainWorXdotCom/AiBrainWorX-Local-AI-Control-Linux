@@ -19,7 +19,7 @@ import model_backends
 import project_memory
 import plugin_host
 from session_gateway import SessionRun
-from linux_clients import Harness
+from linux_clients import Harness, installed_strata_model
 from linux_paths import state_root
 import update_center
 from posix_lifecycle import Processes
@@ -28,10 +28,34 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_BODY = 2*1024*1024
 
 
+def update_progress(config, identity):
+    """Expose check counts only, never arbitrary contents from local state."""
+    path = update_center.progress_path(config, identity)
+    if path.is_symlink():
+        raise ValueError('Update progress must be a local record.')
+    if not path.exists():
+        return {'completed': 0, 'total': 0, 'state': 'pending', 'unit': 'checks'}
+    if path.stat().st_size > 4096:
+        raise ValueError('Update progress is unavailable.')
+    progress = json.loads(path.read_text(encoding='utf-8'))
+    if not isinstance(progress, dict):
+        raise ValueError('Update progress is unavailable.')
+    completed, total = progress.get('completed'), progress.get('total')
+    phase = progress.get('state')
+    if (type(completed) is not int or type(total) is not int or not 1 <= total <= 10000 or
+            not 0 <= completed <= total or phase not in ('checking', 'complete') or
+            progress.get('unit') != 'checks' or (phase == 'complete' and completed != total)):
+        raise ValueError('Update progress is unavailable.')
+    return dict(completed=completed, total=total, state=phase, unit='checks')
+
+
 def make_app(config, port=8765, gateway_port=8766):
     token = secrets.token_hex(32)
     processes = Processes(config)
     harness = Harness(config)
+    # HELP-ACTIVITY: panels reuse telemetry returned by the existing status route.
+    # No Activity request probes a model API or starts a process inspection itself.
+    telemetry = {'snapshot': None}
     def active():
         return core.get_profile(core.ensure_state(config))
     class Handler(BaseHTTPRequestHandler):
@@ -65,10 +89,15 @@ def make_app(config, port=8765, gateway_port=8766):
                 if path.path == '/api/state':
                     return self.json(200, core.view_state(config))
                 if path.path == '/api/status':
-                    status = model_backends.status(config, active())
-                    owned = processes.status(active()['id'])
+                    profile = active()
+                    status = model_backends.status(config, profile)
+                    owned = processes.status(profile['id'])
+                    metrics = status.get('modelMetrics', status.get('metrics'))
+                    telemetry['snapshot'] = {'profile': profile['id'], 'model': json.dumps(profile['model'], sort_keys=True),
+                                             'metrics': metrics if isinstance(metrics, dict) else None}
                     return self.json(200, {**status, **owned, 'ready': status['ready'],
-                        'state': 'ready' if status['ready'] else 'starting' if owned['owned'] else 'offline',
+                        'detail': owned.get('detail', status['detail']) if not status['ready'] else status['detail'],
+                        'state': 'ready' if status['ready'] else 'starting' if owned['owned'] else 'error' if owned['state'] == 'error' else 'offline',
                         'platform': 'WSL2' if 'microsoft' in os.uname().release.lower() else 'Linux'})
                 if path.path == '/api/catalog':
                     return self.json(200, core.read_json(ROOT/'app/model-details.json'))
@@ -78,6 +107,11 @@ def make_app(config, port=8765, gateway_port=8766):
                     return self.json(200, {'items': project_memory.items(config, active())})
                 if path.path == '/api/plugins':
                     return self.json(200, {'items': plugin_host.inventory(config)})
+                if path.path == '/api/plugin-archives':
+                    return self.json(200, plugin_host.archives(config))
+                if path.path == '/api/update-progress':
+                    identity = parse_qs(path.query).get('id', [''])[0]
+                    return self.json(200, update_progress(config, identity))
                 if path.path == '/api/transcript':
                     from conversation_sessions import Sessions
                     identity = parse_qs(path.query).get('id', [''])[0]
@@ -98,6 +132,8 @@ def make_app(config, port=8765, gateway_port=8766):
                 self.send_header('X-Content-Type-Options', 'nosniff'); self.end_headers(); self.wfile.write(raw)
             except (ValueError, KeyError):
                 self.json(422, {'error': 'That local record is unavailable.'})
+            except OSError:
+                self.json(502, {'error': 'That local record is temporarily unavailable.'})
         def do_POST(self):
             if not self.allowed(True):
                 return self.json(403, {'error': 'Local app token required.'})
@@ -110,9 +146,13 @@ def make_app(config, port=8765, gateway_port=8766):
                     return self.json(413, {'error': 'A bounded JSON request is required.'})
                 self.connection.settimeout(15)
                 payload = json.loads(self.rfile.read(size))
+                if not isinstance(payload, dict):
+                    raise ValueError('A JSON object is required.')
                 route = urlsplit(self.path).path
                 if route == '/api/profile':
                     return self.json(200, core.save_profile(config, payload))
+                if route == '/api/import-strata':
+                    return self.json(200, {'model': installed_strata_model(config)})
                 if route == '/api/select':
                     return self.json(200, core.select_profile(config, payload))
                 if route == '/api/start':
@@ -126,11 +166,31 @@ def make_app(config, port=8765, gateway_port=8766):
                 if route == '/api/client-open':
                     return self.json(200, {'url': harness.open_url()})
                 if route == '/api/updates':
-                    return self.json(200, update_center.check(config, core.VERSION, payload.get('includePrereleases', True)))
+                    progress = update_center.progress_writer(config, payload['progressId']) if payload.get('progressId') else None
+                    return self.json(200, update_center.check(config, core.VERSION, payload.get('includePrereleases', True), progress=progress))
+                if route == '/api/update-progress-clear':
+                    path = update_center.progress_path(config, payload.get('id'))
+                    if path.is_symlink():
+                        raise ValueError('Update progress must be a local record.')
+                    path.unlink(missing_ok=True)
+                    return self.json(200, {'note': 'This check progress record was cleared.'})
                 if route == '/api/model-source':
                     return self.json(200, update_center.save_model_source(config, payload))
                 if route == '/api/plugin-approve':
                     return self.json(200, plugin_host.approve(config, payload))
+                if route == '/api/plugin-remove':
+                    return self.json(200, plugin_host.remove(config, payload))
+                if route == '/api/plugin-restore':
+                    return self.json(200, plugin_host.restore(config, payload))
+                if route == '/api/plugin-panels':
+                    profile = active()
+                    cached = telemetry['snapshot']
+                    metrics = cached['metrics'] if cached and cached['profile'] == profile['id'] and cached['model'] == json.dumps(profile['model'], sort_keys=True) else None
+                    inspect_processes = payload.get('inspectProcesses') is True
+                    return self.json(200, plugin_host.panels(config, {
+                        'backend': profile['model']['backend'], 'modelMetrics': metrics,
+                        'inspectProcesses': inspect_processes,
+                        'includeGpuProcesses': inspect_processes and payload.get('includeGpuProcesses') is True}))
                 if route == '/api/memory':
                     return self.json(200, project_memory.save(config, active(), payload))
                 if route == '/api/memory-archive':

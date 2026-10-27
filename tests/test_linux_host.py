@@ -56,6 +56,31 @@ class LinuxHost(unittest.TestCase):
         self.assertEqual(self.fetch('/style.css')[0], 200)
         self.assertEqual(self.fetch('/../../LICENSE')[0], 404)
 
+    def test_missing_native_install_is_actionable_without_mutating_profiles(self):
+        import control_core as core
+        original = core.view_state(self.config)
+        token = re.search(rb'name="awx-token" content="([0-9a-f]+)"', self.fetch('/')[1])[1].decode()
+        status, body = self.fetch('/api/import-strata', 'POST', {},
+            {'Content-Type': 'application/json', 'X-Awx-Token': token})
+        self.assertEqual(status, 422)
+        self.assertIn(b'Install the native Linux Strata runtime', body)
+        self.assertEqual(core.view_state(self.config), original)
+
+    def test_installed_strata_import_prepares_an_editable_native_command_only(self):
+        import linux_clients
+        configfile=Path(self.temp.name)/'strata.json'
+        configfile.write_text(json.dumps({'model_name':'test-native','aliases':['native-coder'],
+            'host':'127.0.0.1','port':8081,'args':['--max-context','8192','--resident-experts']}))
+        server=Path(self.temp.name)/'runtime/serve/server.py'
+        server.parent.mkdir(parents=True);server.write_text('# test fixture')
+        config={**self.config,'StrataPython':sys.executable,'StrataRoot':str(server.parents[1]),'StrataConfig':str(configfile)}
+        model=linux_clients.installed_strata_model(config)
+        self.assertEqual(model['modelId'],'native-coder')
+        self.assertEqual(model['contextWindow'],8192)
+        self.assertEqual(model['launch']['executable'],sys.executable)
+        self.assertIn('--offline',model['launch']['args'])
+        self.assertFalse((Path(self.temp.name)/'owned-processes.local.json').exists())
+
     def test_linux_project_identity_preserves_case(self):
         import project_memory
         from pathlib import Path
@@ -159,6 +184,16 @@ class Ownership(unittest.TestCase):
         self.assertTrue(self.manager.status('fixture')['owned'])
         self.assertEqual(self.manager.stop('fixture')['state'], 'stopped')
         self.assertFalse(self.manager.status('fixture')['owned'])
+
+    def test_exited_engine_reports_attention_without_claiming_ownership(self):
+        import time
+        self.profile['model']['launch']['args']=['-c','import time; time.sleep(.15); raise SystemExit(3)']
+        self.manager.start(self.profile)
+        time.sleep(.3)
+        result=self.manager.status('fixture')
+        self.assertEqual(result['state'],'error')
+        self.assertFalse(result['owned'])
+        self.assertIn('code 3',result['detail'])
 
     def test_pid_reuse_record_never_authorizes_kill(self):
         from posix_lifecycle import identity

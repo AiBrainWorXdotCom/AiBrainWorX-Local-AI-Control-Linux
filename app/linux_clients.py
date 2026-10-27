@@ -6,7 +6,21 @@ from http.client import HTTPConnection
 from urllib.parse import urlsplit
 
 import control_core as core
+import model_backends
 from posix_lifecycle import Processes
+
+
+def installed_strata_model(config):
+    """Populate an editable connection; never save a profile or start an engine."""
+    python = Path(config.get('StrataPython') or '/not-configured')
+    server = Path(config.get('StrataRoot') or '/not-configured')/'serve/server.py'
+    if not python.is_file() or not os.access(python, os.X_OK) or not server.is_file():
+        raise ValueError('Install the native Linux Strata runtime first, then restart the launcher.')
+    model = model_backends.strata_model(config.get('StrataConfig') or '')
+    model['launch'] = {'executable': str(python), 'cwd': str(server.parents[1]),
+        'args': [str(server), '--engine', 'strata', '--config', model['configPath'],
+                 '--host', '127.0.0.1', '--port', '8081', '--offline']}
+    return model
 
 
 class Harness:
