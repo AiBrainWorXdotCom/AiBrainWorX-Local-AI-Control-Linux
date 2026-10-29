@@ -1,5 +1,7 @@
 # AiBrainWorX Local AI Control — Linux
 
+Made by **AiBrainWorX**. **[OpenSourceCoder.com](https://opensourcecoder.com/)** is our website and developer hub for this launcher, model profiles, setup guides and community showcases. [AiBrainWorX.com](https://aibrainworx.com/) publishes our AI research, news and hardware tests.
+
 **Separate native Linux control plane · 0.1.0-alpha.2 · MIT original code**
 
 A local workspace for model connections, profiles, instructions, project memory,
